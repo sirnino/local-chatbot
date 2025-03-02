@@ -1,26 +1,31 @@
 import streamlit as st
-from langchain_ollama.chat_models import ChatOllama
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from chatbot import get_chatbot_chain
+from ollama import Client
 
-OLLAMA_BASEURL='http://192.168.1.99:11434/'
-OLLAMA_MODEL='llama3.2:latest'
+client = Client(
+  host='http://192.168.1.99:11434'
+)
+ollama_models = [m.model for m in client.list()['models']]
 
-llm = ChatOllama(
-        model = OLLAMA_MODEL,
-        temperature = 0.6,
-        base_url = OLLAMA_BASEURL
-    )
+with st.sidebar:
+    st.title("Select your model")
+    model = st.selectbox("Model", ollama_models)
+    temperature = st.slider("Temperature", 0.0, 1.0, 0.5)
 
-prompt = ChatPromptTemplate(messages=[
-    ("system", "You are a helpful AI bot. Your name is Jarvis."),
-    ("human", "{user_input}"),
-])
-
-chain = prompt | llm | StrOutputParser()
+chain = get_chatbot_chain("llama3.2:latest", temperature)
+st.title("Chat with Lumina")
+st.write(f"Using model: {model}")
 
 messages = st.container()
+# Session State initialization
+if 'messages' not in st.session_state:
+    st.session_state['messages'] = []
+
 if user_input := st.chat_input("Say something"):
-    messages.chat_message("user").write(user_input)
+    st.session_state['messages'].append(("user", user_input))
     response = chain.invoke({"user_input": user_input})
-    messages.chat_message("assistant").write(response)
+    st.session_state['messages'].append(("assistant", response))
+
+for msg in st.session_state['messages']:
+    with messages:
+        st.chat_message(msg[0]).write(msg[1])
